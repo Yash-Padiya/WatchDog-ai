@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database (Production)
+  postgres:
+    image: postgres:15-alpine
+    container_name: watchdog-postgres-prod
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data_prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - watchdog-network-prod
+    restart: always
+
+  # Node.js API (Production)
+  api:
+    image: watchdog-api:latest
+    container_name: watchdog-api-prod
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      AI_SERVICE_URL: http://ai-service:5000
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      LOG_LEVEL: warn
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - watchdog-network-prod
+    restart: always
+
+  # Python AI Service (Production)
+  ai-service:
+    image: watchdog-ai:latest
+    container_name: watchdog-ai-service-prod
+    environment:
+      PYTHON_ENV: production
+      PORT: 5000
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: gpt-3.5-turbo
+    ports:
+      - "5000:5000"
+    networks:
+      - watchdog-network-prod
+    restart: always
+
+volumes:
+  postgres_data_prod:
+    driver: local
+
+networks:
+  watchdog-network-prod:
+    driver: bridge
